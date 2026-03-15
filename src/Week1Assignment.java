@@ -2,76 +2,106 @@ import java.util.*;
 
 public class Week1Assignment {
 
+    static class DNSEntry {
+        String domain;
+        String ipAddress;
+        long expiryTime;
 
-    static HashMap<String, Integer> inventory = new HashMap<>();
+        DNSEntry(String domain, String ipAddress, int ttlSeconds) {
+            this.domain = domain;
+            this.ipAddress = ipAddress;
+            this.expiryTime = System.currentTimeMillis() + (ttlSeconds * 1000);
+        }
 
-
-    static LinkedHashMap<String, List<Integer>> waitingList = new LinkedHashMap<>();
-
-
-    public static void checkStock(String productId) {
-
-        int stock = inventory.getOrDefault(productId, 0);
-
-        System.out.println(productId + " → " + stock + " units available");
-    }
-
-
-    public static synchronized void purchaseItem(String productId, int userId) {
-
-        int stock = inventory.getOrDefault(productId, 0);
-
-        if (stock > 0) {
-
-            inventory.put(productId, stock - 1);
-
-            System.out.println("Success! User " + userId +
-                    " purchased " + productId +
-                    ". Remaining stock: " + (stock - 1));
-
-        } else {
-
-            waitingList.putIfAbsent(productId, new ArrayList<>());
-            waitingList.get(productId).add(userId);
-
-            int position = waitingList.get(productId).size();
-
-            System.out.println("Stock unavailable. User " + userId +
-                    " added to waiting list. Position #" + position);
+        boolean isExpired() {
+            return System.currentTimeMillis() > expiryTime;
         }
     }
 
+    static HashMap<String, DNSEntry> cache = new HashMap<>();
 
-    public static void showWaitingList(String productId) {
+    static int cacheHits = 0;
+    static int cacheMisses = 0;
 
-        if (waitingList.containsKey(productId)) {
+    // Simulated upstream DNS
+    public static String queryUpstreamDNS(String domain) {
 
-            System.out.println("Waiting List: " + waitingList.get(productId));
+        String ip = "172.217.14." + new Random().nextInt(255);
 
-        } else {
+        System.out.println("Cache MISS → Query upstream → " + ip);
 
-            System.out.println("No users in waiting list.");
+        return ip;
+    }
+
+    public static String resolve(String domain) {
+
+        if (cache.containsKey(domain)) {
+
+            DNSEntry entry = cache.get(domain);
+
+            if (!entry.isExpired()) {
+
+                cacheHits++;
+                System.out.println("Cache HIT → " + entry.ipAddress);
+
+                return entry.ipAddress;
+
+            } else {
+
+                System.out.println("Cache EXPIRED for " + domain);
+                cache.remove(domain);
+            }
+        }
+
+        cacheMisses++;
+
+        String newIP = queryUpstreamDNS(domain);
+
+        DNSEntry newEntry = new DNSEntry(domain, newIP, 5); // TTL = 5 seconds
+        cache.put(domain, newEntry);
+
+        return newIP;
+    }
+
+    public static void cleanExpiredEntries() {
+
+        Iterator<Map.Entry<String, DNSEntry>> iterator = cache.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+
+            Map.Entry<String, DNSEntry> entry = iterator.next();
+
+            if (entry.getValue().isExpired()) {
+
+                iterator.remove();
+                System.out.println("Removed expired entry: " + entry.getKey());
+            }
         }
     }
 
-    public static void main(String[] args) {
+    public static void getCacheStats() {
 
+        int total = cacheHits + cacheMisses;
 
-        inventory.put("IPHONE15_256GB", 100);
+        double hitRate = (total == 0) ? 0 : ((double) cacheHits / total) * 100;
 
+        System.out.println("Cache Hits: " + cacheHits);
+        System.out.println("Cache Misses: " + cacheMisses);
+        System.out.println("Hit Rate: " + hitRate + "%");
+    }
 
-        checkStock("IPHONE15_256GB");
+    public static void main(String[] args) throws InterruptedException {
 
-        purchaseItem("IPHONE15_256GB", 12345);
-        purchaseItem("IPHONE15_256GB", 67890);
-        purchaseItem("IPHONE15_256GB", 11111);
+        resolve("google.com");
 
+        resolve("google.com");
 
-        inventory.put("IPHONE15_256GB", 0);
+        Thread.sleep(6000);
 
-        purchaseItem("IPHONE15_256GB", 99999);
+        resolve("google.com");
 
+        cleanExpiredEntries();
 
-        showWaitingList("IPHONE15_256GB");
+        getCacheStats();
     }
 }
