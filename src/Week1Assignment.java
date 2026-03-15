@@ -3,77 +3,75 @@ import java.util.*;
 public class Week1Assignment {
 
 
-    static HashMap<String, Integer> usernameMap = new HashMap<>();
+    static HashMap<String, Integer> inventory = new HashMap<>();
 
 
-    static HashMap<String, Integer> attemptFrequency = new HashMap<>();
+    static LinkedHashMap<String, List<Integer>> waitingList = new LinkedHashMap<>();
 
 
-    public static boolean checkAvailability(String username) {
+    public static void checkStock(String productId) {
 
+        int stock = inventory.getOrDefault(productId, 0);
 
-        attemptFrequency.put(username,
-                attemptFrequency.getOrDefault(username, 0) + 1);
-
-
-        return !usernameMap.containsKey(username);
+        System.out.println(productId + " → " + stock + " units available");
     }
 
 
-    public static List<String> suggestAlternatives(String username) {
+    public static synchronized void purchaseItem(String productId, int userId) {
 
-        List<String> suggestions = new ArrayList<>();
+        int stock = inventory.getOrDefault(productId, 0);
 
-        suggestions.add(username + "1");
-        suggestions.add(username + "2");
-        suggestions.add(username + "123");
-        suggestions.add(username.replace("_", "."));
+        if (stock > 0) {
 
-        return suggestions;
-    }
+            inventory.put(productId, stock - 1);
 
-    public static String getMostAttempted() {
+            System.out.println("Success! User " + userId +
+                    " purchased " + productId +
+                    ". Remaining stock: " + (stock - 1));
 
-        String mostAttempted = "";
-        int maxAttempts = 0;
+        } else {
 
-        for (Map.Entry<String, Integer> entry : attemptFrequency.entrySet()) {
+            waitingList.putIfAbsent(productId, new ArrayList<>());
+            waitingList.get(productId).add(userId);
 
-            if (entry.getValue() > maxAttempts) {
-                maxAttempts = entry.getValue();
-                mostAttempted = entry.getKey();
-            }
+            int position = waitingList.get(productId).size();
+
+            System.out.println("Stock unavailable. User " + userId +
+                    " added to waiting list. Position #" + position);
         }
+    }
 
-        return mostAttempted + " (" + maxAttempts + " attempts)";
+
+    public static void showWaitingList(String productId) {
+
+        if (waitingList.containsKey(productId)) {
+
+            System.out.println("Waiting List: " + waitingList.get(productId));
+
+        } else {
+
+            System.out.println("No users in waiting list.");
+        }
     }
 
     public static void main(String[] args) {
 
-        Scanner sc = new Scanner(System.in);
+
+        inventory.put("IPHONE15_256GB", 100);
 
 
-        usernameMap.put("john_doe", 101);
-        usernameMap.put("admin", 102);
-        usernameMap.put("alex123", 103);
+        checkStock("IPHONE15_256GB");
 
-        System.out.print("Enter username to check: ");
-        String username = sc.nextLine();
+        purchaseItem("IPHONE15_256GB", 12345);
+        purchaseItem("IPHONE15_256GB", 67890);
+        purchaseItem("IPHONE15_256GB", 11111);
 
-        if (checkAvailability(username)) {
 
-            System.out.println("Username available!");
+        inventory.put("IPHONE15_256GB", 0);
 
-        } else {
+        purchaseItem("IPHONE15_256GB", 99999);
 
-            System.out.println("Username already taken.");
-            System.out.println("Suggested usernames: "
-                    + suggestAlternatives(username));
-        }
 
-        System.out.println("Most attempted username: "
-                + getMostAttempted());
-
-        sc.close();
+        showWaitingList("IPHONE15_256GB");
     }
 }
