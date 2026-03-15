@@ -2,106 +2,129 @@ import java.util.*;
 
 public class Week1Assignment {
 
-    static class TrieNode {
-        Map<Character, TrieNode> children = new HashMap<>();
-        boolean isEnd = false;
-    }
+    static class ParkingSpot {
+        String licensePlate;
+        long entryTime;
+        boolean occupied;
 
-    static TrieNode root = new TrieNode();
-
-    // query -> frequency
-    static HashMap<String, Integer> queryFrequency = new HashMap<>();
-
-    public static void insertQuery(String query) {
-
-        TrieNode node = root;
-
-        for (char c : query.toCharArray()) {
-            node.children.putIfAbsent(c, new TrieNode());
-            node = node.children.get(c);
-        }
-
-        node.isEnd = true;
-
-        queryFrequency.put(query,
-                queryFrequency.getOrDefault(query, 0) + 1);
-    }
-
-    public static void collectQueries(TrieNode node, String prefix, List<String> result) {
-
-        if (node.isEnd) {
-            result.add(prefix);
-        }
-
-        for (char c : node.children.keySet()) {
-            collectQueries(node.children.get(c), prefix + c, result);
+        ParkingSpot() {
+            licensePlate = null;
+            entryTime = 0;
+            occupied = false;
         }
     }
 
-    public static List<String> search(String prefix) {
+    static final int TOTAL_SPOTS = 500;
+    static ParkingSpot[] parkingLot = new ParkingSpot[TOTAL_SPOTS];
 
-        TrieNode node = root;
+    static int totalProbes = 0;
+    static int vehiclesParked = 0;
 
-        for (char c : prefix.toCharArray()) {
-            if (!node.children.containsKey(c)) {
-                return new ArrayList<>();
+    static {
+        for (int i = 0; i < TOTAL_SPOTS; i++) {
+            parkingLot[i] = new ParkingSpot();
+        }
+    }
+
+
+    public static int hash(String licensePlate) {
+        return Math.abs(licensePlate.hashCode()) % TOTAL_SPOTS;
+    }
+
+
+    public static void parkVehicle(String licensePlate) {
+
+        int index = hash(licensePlate);
+        int probes = 0;
+
+        while (parkingLot[index].occupied) {
+            index = (index + 1) % TOTAL_SPOTS;
+            probes++;
+        }
+
+        parkingLot[index].licensePlate = licensePlate;
+        parkingLot[index].entryTime = System.currentTimeMillis();
+        parkingLot[index].occupied = true;
+
+        vehiclesParked++;
+        totalProbes += probes;
+
+        System.out.println("parkVehicle(\"" + licensePlate + "\") → Assigned spot #" +
+                index + " (" + probes + " probes)");
+    }
+
+
+    public static void exitVehicle(String licensePlate) {
+
+        int index = hash(licensePlate);
+
+        while (parkingLot[index].occupied) {
+
+            if (parkingLot[index].licensePlate.equals(licensePlate)) {
+
+                long durationMillis =
+                        System.currentTimeMillis() - parkingLot[index].entryTime;
+
+                double hours = durationMillis / (1000.0 * 60 * 60);
+
+                double fee = hours * 5.5;
+
+                parkingLot[index].occupied = false;
+                parkingLot[index].licensePlate = null;
+
+                vehiclesParked--;
+
+                System.out.println("exitVehicle(\"" + licensePlate + "\") → Spot #" +
+                        index + " freed, Duration: " +
+                        String.format("%.2f", hours) +
+                        "h, Fee: $" + String.format("%.2f", fee));
+
+                return;
             }
-            node = node.children.get(c);
+
+            index = (index + 1) % TOTAL_SPOTS;
         }
 
-        List<String> queries = new ArrayList<>();
-
-        collectQueries(node, prefix, queries);
-
-        PriorityQueue<String> pq =
-                new PriorityQueue<>((a, b) ->
-                        queryFrequency.get(b) - queryFrequency.get(a));
-
-        pq.addAll(queries);
-
-        List<String> topResults = new ArrayList<>();
-
-        int count = 0;
-
-        while (!pq.isEmpty() && count < 10) {
-            topResults.add(pq.poll());
-            count++;
-        }
-
-        return topResults;
+        System.out.println("Vehicle not found.");
     }
 
-    public static void updateFrequency(String query) {
 
-        queryFrequency.put(query,
-                queryFrequency.getOrDefault(query, 0) + 1);
+    public static int findNearestSpot() {
 
-        System.out.println(query + " → Frequency: " +
-                queryFrequency.get(query));
+        for (int i = 0; i < TOTAL_SPOTS; i++) {
+            if (!parkingLot[i].occupied) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+
+    public static void getStatistics() {
+
+        double occupancy = ((double) vehiclesParked / TOTAL_SPOTS) * 100;
+
+        double avgProbes = vehiclesParked == 0 ?
+                0 : (double) totalProbes / vehiclesParked;
+
+        System.out.println("Occupancy: " +
+                String.format("%.2f", occupancy) + "%");
+
+        System.out.println("Avg Probes: " +
+                String.format("%.2f", avgProbes));
     }
 
     public static void main(String[] args) {
 
-        insertQuery("java tutorial");
-        insertQuery("javascript");
-        insertQuery("java download");
-        insertQuery("java tutorial");
-        insertQuery("java tutorial");
-        insertQuery("java 21 features");
+        parkVehicle("ABC-1234");
+        parkVehicle("ABC-1235");
+        parkVehicle("XYZ-9999");
 
-        System.out.println("Suggestions for 'jav':");
+        exitVehicle("ABC-1234");
 
-        List<String> suggestions = search("jav");
+        System.out.println("Nearest available spot: " + findNearestSpot());
 
-        int rank = 1;
-
-        for (String s : suggestions) {
-            System.out.println(rank + ". " + s +
-                    " (" + queryFrequency.get(s) + " searches)");
-            rank++;
-        }
-
-        updateFrequency("java 21 features");
-        updateFrequency("java 21 features");
+        getStatistics();
     }
 }
