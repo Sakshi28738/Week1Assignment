@@ -2,99 +2,99 @@ import java.util.*;
 
 public class Week1Assignment {
 
-    static HashMap<String, Set<String>> ngramIndex = new HashMap<>();
 
-    static int N = 5; // 5-gram window
+    static HashMap<String, Integer> pageViews = new HashMap<>();
 
-    // Extract n-grams
-    public static List<String> extractNgrams(String text) {
 
-        List<String> ngrams = new ArrayList<>();
+    static HashMap<String, Set<String>> uniqueVisitors = new HashMap<>();
 
-        String[] words = text.toLowerCase().split("\\s+");
 
-        for (int i = 0; i <= words.length - N; i++) {
+    static HashMap<String, Integer> trafficSources = new HashMap<>();
 
-            StringBuilder gram = new StringBuilder();
 
-            for (int j = 0; j < N; j++) {
-                gram.append(words[i + j]).append(" ");
-            }
+    public static void processEvent(String url, String userId, String source) {
 
-            ngrams.add(gram.toString().trim());
-        }
 
-        return ngrams;
+        pageViews.put(url, pageViews.getOrDefault(url, 0) + 1);
+
+
+        uniqueVisitors.putIfAbsent(url, new HashSet<>());
+        uniqueVisitors.get(url).add(userId);
+
+
+        trafficSources.put(source,
+                trafficSources.getOrDefault(source, 0) + 1);
     }
 
 
-    public static void indexDocument(String documentId, String text) {
+    public static List<Map.Entry<String, Integer>> getTopPages() {
 
-        List<String> ngrams = extractNgrams(text);
+        PriorityQueue<Map.Entry<String, Integer>> pq =
+                new PriorityQueue<>((a, b) -> b.getValue() - a.getValue());
 
-        for (String gram : ngrams) {
+        pq.addAll(pageViews.entrySet());
 
-            ngramIndex.putIfAbsent(gram, new HashSet<>());
-            ngramIndex.get(gram).add(documentId);
+        List<Map.Entry<String, Integer>> topPages = new ArrayList<>();
+
+        int count = 0;
+
+        while (!pq.isEmpty() && count < 10) {
+            topPages.add(pq.poll());
+            count++;
         }
 
-        System.out.println(documentId + " indexed with " + ngrams.size() + " n-grams");
+        return topPages;
     }
 
 
-    public static void analyzeDocument(String documentId, String text) {
+    public static void getDashboard() {
 
-        List<String> ngrams = extractNgrams(text);
+        System.out.println("\nTop Pages:");
 
-        HashMap<String, Integer> matchCount = new HashMap<>();
+        List<Map.Entry<String, Integer>> topPages = getTopPages();
 
-        for (String gram : ngrams) {
+        int rank = 1;
 
-            if (ngramIndex.containsKey(gram)) {
+        for (Map.Entry<String, Integer> page : topPages) {
 
-                for (String doc : ngramIndex.get(gram)) {
+            String url = page.getKey();
+            int views = page.getValue();
+            int unique = uniqueVisitors.get(url).size();
 
-                    if (!doc.equals(documentId)) {
+            System.out.println(rank + ". " + url +
+                    " - " + views + " views (" + unique + " unique)");
 
-                        matchCount.put(doc,
-                                matchCount.getOrDefault(doc, 0) + 1);
-                    }
-                }
-            }
+            rank++;
         }
 
-        System.out.println("Extracted " + ngrams.size() + " n-grams");
+        System.out.println("\nTraffic Sources:");
 
-        for (String doc : matchCount.keySet()) {
+        int total = 0;
 
-            int matches = matchCount.get(doc);
+        for (int count : trafficSources.values()) {
+            total += count;
+        }
 
-            double similarity =
-                    ((double) matches / ngrams.size()) * 100;
+        for (String source : trafficSources.keySet()) {
 
-            System.out.println("Found " + matches +
-                    " matching n-grams with " + doc);
+            int count = trafficSources.get(source);
 
-            System.out.println("Similarity: " +
-                    String.format("%.2f", similarity) + "%");
+            double percentage = ((double) count / total) * 100;
 
-            if (similarity > 50) {
-
-                System.out.println("⚠ PLAGIARISM DETECTED");
-            }
+            System.out.println(source + ": " +
+                    String.format("%.2f", percentage) + "%");
         }
     }
 
     public static void main(String[] args) {
 
-        String essay1 = "machine learning algorithms improve data analysis and prediction models significantly";
-        String essay2 = "machine learning algorithms improve data analysis and prediction accuracy significantly";
-        String essay3 = "sports events bring excitement and entertainment to millions of fans worldwide";
+        processEvent("/article/breaking-news", "user_123", "Google");
+        processEvent("/article/breaking-news", "user_456", "Facebook");
+        processEvent("/sports/championship", "user_111", "Direct");
+        processEvent("/sports/championship", "user_222", "Google");
+        processEvent("/sports/championship", "user_111", "Google");
+        processEvent("/tech/ai-update", "user_333", "Google");
 
-        indexDocument("essay_089.txt", essay1);
-        indexDocument("essay_092.txt", essay2);
-
-        analyzeDocument("essay_123.txt", essay1);
-
+        getDashboard();
     }
 }
