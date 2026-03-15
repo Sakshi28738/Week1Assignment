@@ -2,107 +2,106 @@ import java.util.*;
 
 public class Week1Assignment {
 
-    static class TokenBucket {
-        int tokens;
-        int maxTokens;
-        double refillRatePerSecond;
-        long lastRefillTime;
+    static class TrieNode {
+        Map<Character, TrieNode> children = new HashMap<>();
+        boolean isEnd = false;
+    }
 
-        TokenBucket(int maxTokens, double refillRatePerSecond) {
-            this.maxTokens = maxTokens;
-            this.tokens = maxTokens;
-            this.refillRatePerSecond = refillRatePerSecond;
-            this.lastRefillTime = System.currentTimeMillis();
+    static TrieNode root = new TrieNode();
+
+    // query -> frequency
+    static HashMap<String, Integer> queryFrequency = new HashMap<>();
+
+    public static void insertQuery(String query) {
+
+        TrieNode node = root;
+
+        for (char c : query.toCharArray()) {
+            node.children.putIfAbsent(c, new TrieNode());
+            node = node.children.get(c);
         }
 
-        synchronized boolean allowRequest() {
-            refillTokens();
+        node.isEnd = true;
 
-            if (tokens > 0) {
-                tokens--;
-                return true;
-            }
-            return false;
+        queryFrequency.put(query,
+                queryFrequency.getOrDefault(query, 0) + 1);
+    }
+
+    public static void collectQueries(TrieNode node, String prefix, List<String> result) {
+
+        if (node.isEnd) {
+            result.add(prefix);
         }
 
-        synchronized void refillTokens() {
-            long now = System.currentTimeMillis();
-            double secondsPassed = (now - lastRefillTime) / 1000.0;
-
-            int tokensToAdd = (int) (secondsPassed * refillRatePerSecond);
-
-            if (tokensToAdd > 0) {
-                tokens = Math.min(maxTokens, tokens + tokensToAdd);
-                lastRefillTime = now;
-            }
-        }
-
-        synchronized int getRemainingTokens() {
-            refillTokens();
-            return tokens;
-        }
-
-        synchronized int getUsedTokens() {
-            refillTokens();
-            return maxTokens - tokens;
-        }
-
-        synchronized long getRetryAfterSeconds() {
-            refillTokens();
-
-            if (tokens > 0) {
-                return 0;
-            }
-
-            return (long) Math.ceil(1.0 / refillRatePerSecond);
-        }
-
-        synchronized long getResetTime() {
-            refillTokens();
-            int missingTokens = maxTokens - tokens;
-            return System.currentTimeMillis() / 1000
-                    + (long) Math.ceil(missingTokens / refillRatePerSecond);
+        for (char c : node.children.keySet()) {
+            collectQueries(node.children.get(c), prefix + c, result);
         }
     }
 
-    static HashMap<String, TokenBucket> clientBuckets = new HashMap<>();
+    public static List<String> search(String prefix) {
 
-    static final int LIMIT_PER_HOUR = 1000;
-    static final double REFILL_RATE_PER_SECOND = 1000.0 / 3600.0;
+        TrieNode node = root;
 
-    public static synchronized String checkRateLimit(String clientId) {
-        clientBuckets.putIfAbsent(clientId,
-                new TokenBucket(LIMIT_PER_HOUR, REFILL_RATE_PER_SECOND));
-
-        TokenBucket bucket = clientBuckets.get(clientId);
-
-        if (bucket.allowRequest()) {
-            return "Allowed (" + bucket.getRemainingTokens() + " requests remaining)";
-        } else {
-            return "Denied (0 requests remaining, retry after "
-                    + bucket.getRetryAfterSeconds() + "s)";
+        for (char c : prefix.toCharArray()) {
+            if (!node.children.containsKey(c)) {
+                return new ArrayList<>();
+            }
+            node = node.children.get(c);
         }
+
+        List<String> queries = new ArrayList<>();
+
+        collectQueries(node, prefix, queries);
+
+        PriorityQueue<String> pq =
+                new PriorityQueue<>((a, b) ->
+                        queryFrequency.get(b) - queryFrequency.get(a));
+
+        pq.addAll(queries);
+
+        List<String> topResults = new ArrayList<>();
+
+        int count = 0;
+
+        while (!pq.isEmpty() && count < 10) {
+            topResults.add(pq.poll());
+            count++;
+        }
+
+        return topResults;
     }
 
-    public static synchronized void getRateLimitStatus(String clientId) {
-        clientBuckets.putIfAbsent(clientId,
-                new TokenBucket(LIMIT_PER_HOUR, REFILL_RATE_PER_SECOND));
+    public static void updateFrequency(String query) {
 
-        TokenBucket bucket = clientBuckets.get(clientId);
+        queryFrequency.put(query,
+                queryFrequency.getOrDefault(query, 0) + 1);
 
-        System.out.println("{used: " + bucket.getUsedTokens()
-                + ", limit: " + LIMIT_PER_HOUR
-                + ", reset: " + bucket.getResetTime() + "}");
+        System.out.println(query + " → Frequency: " +
+                queryFrequency.get(query));
     }
 
     public static void main(String[] args) {
 
-        String clientId = "abc123";
+        insertQuery("java tutorial");
+        insertQuery("javascript");
+        insertQuery("java download");
+        insertQuery("java tutorial");
+        insertQuery("java tutorial");
+        insertQuery("java 21 features");
 
-        System.out.println(checkRateLimit(clientId));
-        System.out.println(checkRateLimit(clientId));
-        System.out.println(checkRateLimit(clientId));
+        System.out.println("Suggestions for 'jav':");
 
-        getRateLimitStatus(clientId);
+        List<String> suggestions = search("jav");
+
+        int rank = 1;
+
+        for (String s : suggestions) {
+            System.out.println(rank + ". " + s +
+                    " (" + queryFrequency.get(s) + " searches)");
+            rank++;
+        }
+
+        updateFrequency("java 21 features");
+        updateFrequency("java 21 features");
     }
 }
