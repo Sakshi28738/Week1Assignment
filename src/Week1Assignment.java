@@ -2,143 +2,106 @@ import java.util.*;
 
 public class Week1Assignment {
 
-    static class Transaction {
-        int id;
-        int amount;
-        String merchant;
-        String account;
-        int time; // minutes from start of day
+    static final int L1_CAPACITY = 10000;
+    static final int L2_CAPACITY = 100000;
 
-        Transaction(int id, int amount, String merchant, String account, int time) {
-            this.id = id;
-            this.amount = amount;
-            this.merchant = merchant;
-            this.account = account;
-            this.time = time;
+    static LinkedHashMap<String, String> L1Cache =
+            new LinkedHashMap<String, String>(L1_CAPACITY, 0.75f, true) {
+                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                    return size() > L1_CAPACITY;
+                }
+            };
+
+    static HashMap<String, String> L2Cache = new HashMap<>();
+
+    static HashMap<String, String> database = new HashMap<>();
+
+    static int L1Hits = 0;
+    static int L2Hits = 0;
+    static int L3Hits = 0;
+
+    public static String getVideo(String videoId) {
+
+        long start = System.currentTimeMillis();
+
+        if (L1Cache.containsKey(videoId)) {
+
+            L1Hits++;
+            System.out.println("L1 Cache HIT (0.5ms)");
+
+            return L1Cache.get(videoId);
         }
-    }
 
-    // Classic Two-Sum
-    public static void findTwoSum(List<Transaction> transactions, int target) {
+        System.out.println("L1 Cache MISS");
 
-        HashMap<Integer, Transaction> map = new HashMap<>();
+        if (L2Cache.containsKey(videoId)) {
 
-        for (Transaction t : transactions) {
+            L2Hits++;
+            System.out.println("L2 Cache HIT (5ms)");
 
-            int complement = target - t.amount;
+            String video = L2Cache.get(videoId);
 
-            if (map.containsKey(complement)) {
+            L1Cache.put(videoId, video);
 
-                Transaction match = map.get(complement);
+            System.out.println("Promoted to L1");
 
-                System.out.println("Two-Sum Match → (" +
-                        match.id + ", " + t.id + ")");
-            }
-
-            map.put(t.amount, t);
+            return video;
         }
-    }
 
-    // Two-Sum with time window (1 hour = 60 minutes)
-    public static void findTwoSumTimeWindow(List<Transaction> transactions, int target) {
+        System.out.println("L2 Cache MISS");
 
-        HashMap<Integer, Transaction> map = new HashMap<>();
+        if (database.containsKey(videoId)) {
 
-        for (Transaction t : transactions) {
+            L3Hits++;
 
-            int complement = target - t.amount;
+            System.out.println("L3 Database HIT (150ms)");
 
-            if (map.containsKey(complement)) {
+            String video = database.get(videoId);
 
-                Transaction prev = map.get(complement);
+            if (L2Cache.size() >= L2_CAPACITY) {
 
-                if (Math.abs(t.time - prev.time) <= 60) {
-
-                    System.out.println("Time Window Match → (" +
-                            prev.id + ", " + t.id + ")");
+                Iterator<String> it = L2Cache.keySet().iterator();
+                if (it.hasNext()) {
+                    L2Cache.remove(it.next());
                 }
             }
 
-            map.put(t.amount, t);
+            L2Cache.put(videoId, video);
+
+            return video;
         }
+
+        return null;
     }
 
-    // Duplicate transaction detection
-    public static void detectDuplicates(List<Transaction> transactions) {
+    public static void getStatistics() {
 
-        HashMap<String, List<String>> duplicates = new HashMap<>();
+        int total = L1Hits + L2Hits + L3Hits;
 
-        for (Transaction t : transactions) {
+        double l1Rate = (double) L1Hits / total * 100;
+        double l2Rate = (double) L2Hits / total * 100;
+        double l3Rate = (double) L3Hits / total * 100;
 
-            String key = t.amount + "_" + t.merchant;
+        System.out.println("\nCache Statistics:");
 
-            duplicates.putIfAbsent(key, new ArrayList<>());
+        System.out.println("L1: Hit Rate " + String.format("%.2f", l1Rate) + "%");
+        System.out.println("L2: Hit Rate " + String.format("%.2f", l2Rate) + "%");
+        System.out.println("L3: Hit Rate " + String.format("%.2f", l3Rate) + "%");
 
-            duplicates.get(key).add(t.account);
-        }
-
-        for (String key : duplicates.keySet()) {
-
-            List<String> accounts = duplicates.get(key);
-
-            if (accounts.size() > 1) {
-
-                System.out.println("Duplicate Transaction → " +
-                        key + " accounts: " + accounts);
-            }
-        }
-    }
-
-    // K-Sum (simple recursive approach)
-    public static void findKSum(List<Transaction> transactions, int k, int target,
-                                List<Transaction> current, int index) {
-
-        if (k == 0 && target == 0) {
-
-            System.out.print("K-Sum Match → ");
-
-            for (Transaction t : current) {
-                System.out.print(t.id + " ");
-            }
-
-            System.out.println();
-            return;
-        }
-
-        if (k == 0 || index >= transactions.size()) {
-            return;
-        }
-
-        Transaction t = transactions.get(index);
-
-        current.add(t);
-
-        findKSum(transactions, k - 1, target - t.amount, current, index + 1);
-
-        current.remove(current.size() - 1);
-
-        findKSum(transactions, k, target, current, index + 1);
+        System.out.println("Overall Requests: " + total);
     }
 
     public static void main(String[] args) {
 
-        List<Transaction> transactions = new ArrayList<>();
+        database.put("video_123", "Video Data 123");
+        database.put("video_999", "Video Data 999");
 
-        transactions.add(new Transaction(1, 500, "Store A", "acc1", 600));
-        transactions.add(new Transaction(2, 300, "Store B", "acc2", 615));
-        transactions.add(new Transaction(3, 200, "Store C", "acc3", 630));
-        transactions.add(new Transaction(4, 500, "Store A", "acc4", 640));
+        getVideo("video_123");
 
-        System.out.println("Two-Sum Results:");
-        findTwoSum(transactions, 500);
+        getVideo("video_123");
 
-        System.out.println("\nTwo-Sum with Time Window:");
-        findTwoSumTimeWindow(transactions, 500);
+        getVideo("video_999");
 
-        System.out.println("\nDuplicate Detection:");
-        detectDuplicates(transactions);
-
-        System.out.println("\nK-Sum Results:");
-        findKSum(transactions, 3, 1000, new ArrayList<>(), 0);
+        getStatistics();
     }
 }
