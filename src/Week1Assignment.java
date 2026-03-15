@@ -2,106 +2,99 @@ import java.util.*;
 
 public class Week1Assignment {
 
-    static class DNSEntry {
-        String domain;
-        String ipAddress;
-        long expiryTime;
+    static HashMap<String, Set<String>> ngramIndex = new HashMap<>();
 
-        DNSEntry(String domain, String ipAddress, int ttlSeconds) {
-            this.domain = domain;
-            this.ipAddress = ipAddress;
-            this.expiryTime = System.currentTimeMillis() + (ttlSeconds * 1000);
+    static int N = 5; // 5-gram window
+
+    // Extract n-grams
+    public static List<String> extractNgrams(String text) {
+
+        List<String> ngrams = new ArrayList<>();
+
+        String[] words = text.toLowerCase().split("\\s+");
+
+        for (int i = 0; i <= words.length - N; i++) {
+
+            StringBuilder gram = new StringBuilder();
+
+            for (int j = 0; j < N; j++) {
+                gram.append(words[i + j]).append(" ");
+            }
+
+            ngrams.add(gram.toString().trim());
         }
 
-        boolean isExpired() {
-            return System.currentTimeMillis() > expiryTime;
+        return ngrams;
+    }
+
+
+    public static void indexDocument(String documentId, String text) {
+
+        List<String> ngrams = extractNgrams(text);
+
+        for (String gram : ngrams) {
+
+            ngramIndex.putIfAbsent(gram, new HashSet<>());
+            ngramIndex.get(gram).add(documentId);
         }
+
+        System.out.println(documentId + " indexed with " + ngrams.size() + " n-grams");
     }
 
-    static HashMap<String, DNSEntry> cache = new HashMap<>();
 
-    static int cacheHits = 0;
-    static int cacheMisses = 0;
+    public static void analyzeDocument(String documentId, String text) {
 
-    // Simulated upstream DNS
-    public static String queryUpstreamDNS(String domain) {
+        List<String> ngrams = extractNgrams(text);
 
-        String ip = "172.217.14." + new Random().nextInt(255);
+        HashMap<String, Integer> matchCount = new HashMap<>();
 
-        System.out.println("Cache MISS → Query upstream → " + ip);
+        for (String gram : ngrams) {
 
-        return ip;
-    }
+            if (ngramIndex.containsKey(gram)) {
 
-    public static String resolve(String domain) {
+                for (String doc : ngramIndex.get(gram)) {
 
-        if (cache.containsKey(domain)) {
+                    if (!doc.equals(documentId)) {
 
-            DNSEntry entry = cache.get(domain);
-
-            if (!entry.isExpired()) {
-
-                cacheHits++;
-                System.out.println("Cache HIT → " + entry.ipAddress);
-
-                return entry.ipAddress;
-
-            } else {
-
-                System.out.println("Cache EXPIRED for " + domain);
-                cache.remove(domain);
+                        matchCount.put(doc,
+                                matchCount.getOrDefault(doc, 0) + 1);
+                    }
+                }
             }
         }
 
-        cacheMisses++;
+        System.out.println("Extracted " + ngrams.size() + " n-grams");
 
-        String newIP = queryUpstreamDNS(domain);
+        for (String doc : matchCount.keySet()) {
 
-        DNSEntry newEntry = new DNSEntry(domain, newIP, 5); // TTL = 5 seconds
-        cache.put(domain, newEntry);
+            int matches = matchCount.get(doc);
 
-        return newIP;
-    }
+            double similarity =
+                    ((double) matches / ngrams.size()) * 100;
 
-    public static void cleanExpiredEntries() {
+            System.out.println("Found " + matches +
+                    " matching n-grams with " + doc);
 
-        Iterator<Map.Entry<String, DNSEntry>> iterator = cache.entrySet().iterator();
+            System.out.println("Similarity: " +
+                    String.format("%.2f", similarity) + "%");
 
-        while (iterator.hasNext()) {
+            if (similarity > 50) {
 
-            Map.Entry<String, DNSEntry> entry = iterator.next();
-
-            if (entry.getValue().isExpired()) {
-
-                iterator.remove();
-                System.out.println("Removed expired entry: " + entry.getKey());
+                System.out.println("⚠ PLAGIARISM DETECTED");
             }
         }
     }
 
-    public static void getCacheStats() {
+    public static void main(String[] args) {
 
-        int total = cacheHits + cacheMisses;
+        String essay1 = "machine learning algorithms improve data analysis and prediction models significantly";
+        String essay2 = "machine learning algorithms improve data analysis and prediction accuracy significantly";
+        String essay3 = "sports events bring excitement and entertainment to millions of fans worldwide";
 
-        double hitRate = (total == 0) ? 0 : ((double) cacheHits / total) * 100;
+        indexDocument("essay_089.txt", essay1);
+        indexDocument("essay_092.txt", essay2);
 
-        System.out.println("Cache Hits: " + cacheHits);
-        System.out.println("Cache Misses: " + cacheMisses);
-        System.out.println("Hit Rate: " + hitRate + "%");
-    }
+        analyzeDocument("essay_123.txt", essay1);
 
-    public static void main(String[] args) throws InterruptedException {
-
-        resolve("google.com");
-
-        resolve("google.com");
-
-        Thread.sleep(6000);
-
-        resolve("google.com");
-
-        cleanExpiredEntries();
-
-        getCacheStats();
     }
 }
